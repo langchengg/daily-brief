@@ -15,7 +15,9 @@ import {
   enrichGithubTrendingSummaries,
   enrichTrendingPapersSummaries,
   enrichXViralSummaries,
+  enrichProductHuntSummaries,
 } from "../lib/ai/enrich";
+import { generateSectionInsights } from "../lib/ai/section-insights";
 import {
   groupRaw,
   isSportsArticle,
@@ -65,6 +67,23 @@ async function enrichGhTrending(articles: ArticleInput[]): Promise<void> {
   );
 }
 
+async function enrichProductHunt(articles: ArticleInput[]): Promise<void> {
+  const ph = articles.filter((a) => a.sourceId === "producthunt").slice(0, 30);
+  if (ph.length === 0) return;
+  console.log(
+    `[daily] enriching ${ph.length} Product Hunt products with ${REPORT_LOCALE} analysis…`,
+  );
+  const t0 = Date.now();
+  const summaries = await enrichProductHuntSummaries(ph);
+  for (const a of ph) {
+    const s = summaries.get(a.url);
+    if (s) a.summary = s;
+  }
+  console.log(
+    `[daily] enrichment done in ${((Date.now() - t0) / 1000).toFixed(1)}s, matched ${summaries.size}/${ph.length}`,
+  );
+}
+
 /**
  * finance:news is rendered as a merged time-sorted list (see
  * MERGED_SUBGROUP_LIMITS in render.ts). Enrich exactly the items that
@@ -78,6 +97,10 @@ async function enrichFinanceNews(articles: ArticleInput[]): Promise<void> {
 
 async function enrichPolitics(articles: ArticleInput[]): Promise<void> {
   await enrichMergedSubgroup(articles, "politics", "world");
+}
+
+async function enrichRobotics(articles: ArticleInput[]): Promise<void> {
+  await enrichMergedSubgroup(articles, "robotics", "news");
 }
 
 async function enrichAiNews(articles: ArticleInput[]): Promise<void> {
@@ -253,11 +276,13 @@ async function main() {
 
   // Enrich GH Trending, papers, finance news, and politics with summaries.
   await enrichGhTrending(articles);
+  await enrichProductHunt(articles);
   await enrichTrendingPapers(articles);
   await enrichFinanceNews(articles);
   await enrichPolitics(articles);
   await enrichAiNews(articles);
   await enrichXViral(articles);
+  await enrichRobotics(articles);
 
   // Trading signals: Yahoo fetch + indicators + commentary. Non-fatal —
   // if it errors, we still ship the news digest.
@@ -274,6 +299,18 @@ async function main() {
   const { report } = await generateDailyReport(articles);
   if (trading) report.trading = trading;
   console.log(`[daily] digest ready in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+
+  // Generate per-section profit insights — non-fatal.
+  try {
+    console.log(`[daily] generating section insights with ${getModelTag()}…`);
+    const t1 = Date.now();
+    const insights = await generateSectionInsights(articles);
+    report.section_insights = insights;
+    console.log(`[daily] section insights ready in ${((Date.now() - t1) / 1000).toFixed(1)}s`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[daily] section insights failed: ${msg}`);
+  }
 
   const dateDir = path.join(OUTPUT_DIR, date);
   fs.mkdirSync(dateDir, { recursive: true });

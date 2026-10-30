@@ -26,6 +26,8 @@ export interface DailyReport {
   keywords: string[];
   /** Optional trading-signals section, present when scripts/daily.ts ran successfully. */
   trading?: TradingSection;
+  /** Per-section profit-oriented insight summaries. */
+  section_insights?: Record<string, string>;
 }
 
 import type { TickerAnalysis } from "../trading/signals";
@@ -44,10 +46,10 @@ export interface ArticleInput extends RawArticle {
   source: string;
 }
 
-const PER_CATEGORY_LIMIT: Record<Category, number> = {
-  tech: 25,
-  finance: 20,
-  politics: 15,
+const PER_CATEGORY_LIMIT: Record<Exclude<Category, "robotics">, number> = {
+  tech: 4,
+  finance: 3,
+  politics: 3,
 };
 
 const MAX_AGE_DAYS = 14;
@@ -196,14 +198,17 @@ async function callOnce(userPayloadJson: string): Promise<DailyReport> {
 export async function generateDailyReport(
   articles: ArticleInput[],
 ): Promise<{ report: DailyReport; tokensUsed: number }> {
-  const grouped: Record<Category, ArticleInput[]> = {
+  const grouped: Record<Exclude<Category, "robotics">, ArticleInput[]> = {
     tech: [],
     finance: [],
     politics: [],
   };
-  for (const a of articles) grouped[a.category].push(a);
+  for (const a of articles) {
+    if (a.category === "robotics") continue;
+    grouped[a.category].push(a);
+  }
 
-  const compact = (Object.keys(grouped) as Category[]).flatMap((c) =>
+  const compact = (Object.keys(grouped) as Exclude<Category, "robotics">[]).flatMap((c) =>
     selectRoundRobin(grouped[c], PER_CATEGORY_LIMIT[c]),
   );
 
@@ -213,7 +218,7 @@ export async function generateDailyReport(
     url: a.url,
     source: a.source,
     category: a.category,
-    excerpt: (a.excerpt ?? "").slice(0, 200),
+    excerpt: (a.excerpt ?? "").slice(0, 60),
     published: a.publishedAt?.toISOString() ?? "",
   }));
   const userPayloadJson = JSON.stringify(userPayload);

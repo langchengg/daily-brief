@@ -207,12 +207,65 @@ Output STRICTLY a JSON object, no markdown:
 
 **Quote rule (important!)**: For any quotation INSIDE a summary string, use single quotes ' or curly quotes '" — **never** a raw double quote, which breaks JSON parsing.`;
 
+const PH_SYSTEM_PROMPT_ZH = `你是一名产品分析师，为 Product Hunt 上的新产品写**结构化中文分析**。
+
+输入：每个产品有 url、name（产品名）、tagline（一句话标语）。
+
+任务：根据产品名 + 标语，写一段 **100-180 字的中文分析**，必须包含以下要素：
+  1. **服务场景**：这个产品用在什么场景下（如：远程协作、内容创作、数据分析…）
+  2. **目标用户**：面向谁（如：独立开发者、电商卖家、内容创作者、企业团队…）
+  3. **解决的问题**：用户之前的痛点是什么
+  4. **一句话价值**：一句话讲清这个产品的核心价值主张
+  5. **用户反馈倾向**：推测 2-3 种典型用户反馈（如「定价偏高但功能强」「UI 简洁上手快」「缺少XX功能」）
+
+写作风格：
+  - 信息密度高，不写"这是一款…"这种废话开头
+  - 用「」标注引用/反馈，不用英文双引号
+  - 分析要有洞察，不是复述标语
+  - 信息不足宁可短，不要编造
+
+输出严格 JSON 对象，不要 markdown：
+{
+  "summaries": [
+    { "url": "<原 url，从输入中精确复制>", "summary": "<100-180 字中文分析>" },
+    ...
+  ]
+}
+
+**引号规则（重要！）**：summary 内的引用一律用中文全角引号「」或""，**绝不**用英文双引号 \\" —— 否则会导致 JSON 解析失败。`;
+
+const PH_SYSTEM_PROMPT_EN = `You are a product analyst writing **structured English analysis** for Product Hunt products.
+
+Input: each product has url, name, and tagline.
+
+Task: from name + tagline, write a **100-180 word English analysis** covering:
+  1. **Use case**: what scenario does this product serve (e.g. remote collaboration, content creation, data analytics…)
+  2. **Target users**: who is it for (e.g. indie devs, e-commerce sellers, content creators, enterprise teams…)
+  3. **Problem solved**: what pain point did users have before
+  4. **Value proposition**: one sentence capturing the core value
+  5. **Likely user feedback**: 2-3 anticipated user reactions (e.g. "pricing is steep but powerful", "clean UI, easy onboarding", "missing XX feature")
+
+Style:
+  - High information density; avoid "This is a..." filler
+  - Analytical insight, not just restating the tagline
+  - If info is insufficient, prefer shorter over fabrication
+
+Output STRICTLY a JSON object, no markdown:
+{
+  "summaries": [
+    { "url": "<exact url from input>", "summary": "<100-180 word English analysis>" },
+    ...
+  ]
+}
+
+**Quote rule (important!)**: For any quotation INSIDE a summary string, use single quotes ' or curly quotes '" — **never** a raw double quote, which breaks JSON parsing.`;
+
 // Pick the right localized prompt set at module init. Each enricher reaches
 // in via PROMPTS.<key> so the call sites stay locale-agnostic.
 const PROMPTS =
   REPORT_LOCALE === "en"
-    ? { gh: GH_SYSTEM_PROMPT_EN, finance: FINANCE_SYSTEM_PROMPT_EN, xViral: XVIRAL_SYSTEM_PROMPT_EN, papers: PAPERS_SYSTEM_PROMPT_EN }
-    : { gh: GH_SYSTEM_PROMPT_ZH, finance: FINANCE_SYSTEM_PROMPT_ZH, xViral: XVIRAL_SYSTEM_PROMPT_ZH, papers: PAPERS_SYSTEM_PROMPT_ZH };
+    ? { gh: GH_SYSTEM_PROMPT_EN, finance: FINANCE_SYSTEM_PROMPT_EN, xViral: XVIRAL_SYSTEM_PROMPT_EN, papers: PAPERS_SYSTEM_PROMPT_EN, ph: PH_SYSTEM_PROMPT_EN }
+    : { gh: GH_SYSTEM_PROMPT_ZH, finance: FINANCE_SYSTEM_PROMPT_ZH, xViral: XVIRAL_SYSTEM_PROMPT_ZH, papers: PAPERS_SYSTEM_PROMPT_ZH, ph: PH_SYSTEM_PROMPT_ZH };
 
 const USER_PROMPT_HEADER =
   REPORT_LOCALE === "en"
@@ -365,4 +418,21 @@ export async function enrichTrendingPapersSummaries(
     excerpt: (it.excerpt ?? "").slice(0, 300),
   }));
   return runEnrichment(payload, PROMPTS.papers, "papers summaries");
+}
+
+/**
+ * Generate structured product analysis for Product Hunt items.
+ * Each summary covers: scenario, target users, problem, value prop,
+ * and likely user feedback.
+ */
+export async function enrichProductHuntSummaries(
+  items: EnrichInput[],
+): Promise<Map<string, string>> {
+  if (items.length === 0) return new Map();
+  const payload = items.map((it) => ({
+    url: it.url,
+    name: it.title,
+    tagline: (it.excerpt ?? "").slice(0, 200),
+  }));
+  return runEnrichment(payload, PROMPTS.ph, "PH summaries");
 }

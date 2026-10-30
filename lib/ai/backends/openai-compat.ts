@@ -104,6 +104,11 @@ export async function runOpenAICompat(
       { timeout: timeoutMs },
     );
     const text = (resp.choices[0]?.message?.content ?? "").trim();
+    if (!text) {
+      throw new Error(
+        `LLM returned empty completion text (finish_reason: ${resp.choices[0]?.finish_reason ?? "unknown"})`,
+      );
+    }
     const durationMs = Date.now() - started;
     logLlmCall({
       ts: new Date(started).toISOString(),

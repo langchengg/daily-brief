@@ -13,6 +13,19 @@
     ]
   },
   {
+    "id": "producthunt",
+    "name": "Product Hunt",
+    "type": "rss",
+    "url": "https://www.producthunt.com/feed",
+    "category": "tech",
+    "subcategory": "product-hunt",
+    "enabled": true,
+    "locales": [
+      "zh",
+      "en"
+    ]
+  },
+  {
     "id": "v2ex-hot",
     "name": "V2EX",
     "type": "api",
@@ -671,6 +684,45 @@
     "enabled": false,
     "locales": [
       "zh"
+    ]
+  },
+  {
+    "id": "robot-report",
+    "name": "The Robot Report",
+    "type": "rss",
+    "url": "https://www.therobotreport.com/feed",
+    "category": "robotics",
+    "subcategory": "news",
+    "enabled": true,
+    "locales": [
+      "zh",
+      "en"
+    ]
+  },
+  {
+    "id": "ieee-robotics",
+    "name": "IEEE Spectrum Robotics",
+    "type": "rss",
+    "url": "https://spectrum.ieee.org/feeds/robotics.rss",
+    "category": "robotics",
+    "subcategory": "news",
+    "enabled": true,
+    "locales": [
+      "zh",
+      "en"
+    ]
+  },
+  {
+    "id": "robohub",
+    "name": "Robohub",
+    "type": "rss",
+    "url": "https://robohub.org/feed",
+    "category": "robotics",
+    "subcategory": "news",
+    "enabled": true,
+    "locales": [
+      "zh",
+      "en"
     ]
   }
 ]

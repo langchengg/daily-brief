@@ -44,6 +44,16 @@ const logDir = path.join(projectRoot, "logs");
 fs.mkdirSync(logDir, { recursive: true });
 const logFile = path.join(logDir, `daily-${today}.log`);
 
+// Temporary operational pause requested on 2026-08-16. Keeping launchd loaded
+// means the existing 08:00 schedule resumes automatically on this date.
+const resumeOn = "2026-08-25";
+if (today < resumeOn) {
+  const message = `[${now()}] paused: report generation resumes on ${resumeOn}\n`;
+  fs.appendFileSync(logFile, message);
+  process.stdout.write(message);
+  process.exit(0);
+}
+
 fs.appendFileSync(logFile, `[${now()}] running npm run daily\n`);
 
 // `shell: true` lets us write 'npm' instead of resolving npm.cmd vs npm
@@ -80,11 +90,25 @@ child.on("close", (code) => {
       );
     }
 
+    // Send push notifications (email + Telegram). Non-fatal — if it
+    // errors, the report still exists on disk and Chrome still opens.
+    fs.appendFileSync(logFile, `[${now()}] sending notifications…\n`);
+    const notifyResult = spawnSyncShim("npx", ["tsx", "scripts/notify.ts"], {
+      cwd: projectRoot,
+    });
+    if (notifyResult.status === 0) {
+      fs.appendFileSync(logFile, `[${now()}] notifications OK\n`);
+    } else {
+      fs.appendFileSync(
+        logFile,
+        `[${now()}] notifications FAILED (exit ${notifyResult.status}) — non-fatal\n`,
+      );
+    }
+
     // Detached so we don't block on Chrome's lifetime. Errors here are
     // cosmetic — the report exists on disk regardless.
-    const opener = spawn("npm", ["run", "open"], {
+    const opener = spawn(process.execPath, [path.join(projectRoot, "scripts", "open-report.mjs")], {
       cwd: projectRoot,
-      shell: true,
       detached: true,
       stdio: "ignore",
     });

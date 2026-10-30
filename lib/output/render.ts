@@ -30,6 +30,8 @@ const TEXTS_ZH = {
   catPolitics: "时政观察",
   catTrading: "市场行情",
   catCommunity: "社区讨论",
+  catRobotics: "机器人",
+  subRoboticsNews: "行业动态",
   subAiNews: "AI 媒体",
   subTrendingPapers: "热门论文",
   subXViral: "X 推文",
@@ -70,6 +72,7 @@ const TEXTS_ZH = {
   mdTodayKeywords: "今日关键词",
   mdImportance: "重要度",
   archiveLink: "← 历史归档",
+  sectionInsightLabel: "💰 赚钱洞察",
 };
 
 const TEXTS_EN: typeof TEXTS_ZH = {
@@ -79,6 +82,8 @@ const TEXTS_EN: typeof TEXTS_ZH = {
   catPolitics: "World",
   catTrading: "Markets",
   catCommunity: "Community",
+  catRobotics: "Robotics",
+  subRoboticsNews: "Industry News",
   subAiNews: "AI Media",
   subTrendingPapers: "Trending Papers",
   subXViral: "X Viral",
@@ -120,6 +125,7 @@ const TEXTS_EN: typeof TEXTS_ZH = {
   mdTodayKeywords: "Keywords",
   mdImportance: "Importance",
   archiveLink: "← Archive",
+  sectionInsightLabel: "💰 Profit Insights",
 };
 
 const STR = REPORT_LOCALE === "en" ? TEXTS_EN : TEXTS_ZH;
@@ -153,12 +159,14 @@ const CATEGORY_LABELS: Record<Category, string> = {
   tech: STR.catTech,
   finance: STR.catFinance,
   politics: STR.catPolitics,
+  robotics: STR.catRobotics,
 };
 
 const CATEGORY_DIGEST_LABELS: Record<Category, string> = {
   tech: STR.catTech,
   finance: STR.catFinance,
   politics: STR.catPolitics,
+  robotics: STR.catRobotics,
 };
 
 /**
@@ -171,16 +179,18 @@ const SUBCATEGORY_ORDER: Partial<Record<Category, string[]>> = {
   // Locale filtering at registry level decides which actually appears:
   // zh mode keeps cn-community (V2EX / LinuxDo); en mode keeps
   // overseas-community (Hacker News / r/stocks).
-  tech: ["github-trending", "trending-papers", "x-viral", "ai-news", "cn-community", "overseas-community"],
+  tech: ["github-trending", "product-hunt", "trending-papers", "x-viral", "ai-news", "cn-community", "overseas-community"],
   finance: ["news"],
   politics: ["world"],
+  robotics: ["news"],
 };
 
-const TECH_MAIN_SUBS = new Set(["github-trending", "trending-papers", "x-viral", "ai-news"]);
+const TECH_MAIN_SUBS = new Set(["github-trending", "product-hunt", "trending-papers", "x-viral", "ai-news"]);
 const TECH_COMMUNITY_SUBS = new Set(["cn-community", "overseas-community"]);
 
 const SUBCATEGORY_LABELS: Record<string, string> = {
   "github-trending": "GitHub Trending",
+  "product-hunt": "Product Hunt",
   "trending-papers": STR.subTrendingPapers,
   "cn-community": STR.subCnCommunity,
   "overseas-community": STR.subOverseasCommunity,
@@ -189,6 +199,7 @@ const SUBCATEGORY_LABELS: Record<string, string> = {
   "blog-weekly": STR.subBlogWeekly,
   news: STR.subFinanceNews,
   world: STR.subWorld,
+  "robotics-news": STR.subRoboticsNews,
 };
 
 /**
@@ -242,6 +253,7 @@ export const MERGED_SUBGROUP_LIMITS: Record<string, number> = {
   "tech:ai-news": 15,
   "finance:news": 12,
   "politics:world": 15,
+  "robotics:news": 12,
 };
 
 /**
@@ -286,6 +298,7 @@ export function groupRaw(
     tech: new Map(),
     finance: new Map(),
     politics: new Map(),
+    robotics: new Map(),
   };
   // Pre-seed empty buckets for every enabled source so per-source-tabbed
   // subcategories (e.g. cn-community) still render a tab for sources that
@@ -346,7 +359,7 @@ export function groupRaw(
     });
   }
 
-  const out: RawByCategory = { tech: [], finance: [], politics: [] };
+  const out: RawByCategory = { tech: [], finance: [], politics: [], robotics: [] };
 
   for (const cat of Object.keys(buckets) as Category[]) {
     const order = SUBCATEGORY_ORDER[cat];
@@ -533,6 +546,7 @@ export function renderHtml(
   date: string,
 ): string {
   const trading = report.trading;
+  const insights = report.section_insights ?? {};
 
   // Split tech raw subgroups: "tech" L1 panel (github-trending + ai-news)
   // vs. "community" L1 panel (cn-community). Keeps the registry simple
@@ -551,6 +565,7 @@ export function renderHtml(
     finance: sumItems(raw.finance),
     politics: sumItems(raw.politics),
     community: sumItems(techCommunitySubs),
+    robotics: sumItems(raw.robotics),
   };
 
   return `<!doctype html>
@@ -814,6 +829,41 @@ export function renderHtml(
     padding: 0.25rem 0.7rem;
     border-radius: 999px;
     font-size: 0.8rem;
+  }
+
+  /* ===== section insight cards ===== */
+  .section-insight {
+    margin: 1.5rem 0 0.5rem;
+    padding: 1rem 1.3rem;
+    background: linear-gradient(135deg, rgba(245,158,11,0.06) 0%, rgba(217,119,6,0.03) 100%);
+    border: 1px solid rgba(217,119,6,0.15);
+    border-left: 4px solid #d97706;
+    border-radius: 0.6rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .section-insight {
+      background: linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(217,119,6,0.04) 100%);
+      border-color: rgba(245,158,11,0.2);
+      border-left-color: #f59e0b;
+    }
+  }
+  .section-insight .insight-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #d97706;
+    margin-bottom: 0.4rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    .section-insight .insight-label { color: #fbbf24; }
+  }
+  .section-insight .insight-text {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: var(--fg);
   }
 
   /* ===== L2 sub-tabs ===== */
@@ -1203,19 +1253,39 @@ export function renderHtml(
     ${trading ? `<button class="tab" data-tab="trading">${STR.catTrading}<span class="count">${trading.tickers.length}</span></button>` : ""}
     <button class="tab" data-tab="politics">${CATEGORY_LABELS.politics}<span class="count">${counts.politics}</span></button>
     <button class="tab" data-tab="finance">${CATEGORY_LABELS.finance}<span class="count">${counts.finance}</span></button>
+    ${raw.robotics.length > 0 ? `<button class="tab" data-tab="robotics">${STR.catRobotics}<span class="count">${counts.robotics}</span></button>` : ""}
     ${techCommunitySubs.length > 0 ? `<button class="tab" data-tab="community">${STR.catCommunity}<span class="count">${counts.community}</span></button>` : ""}
   </nav>
 
   <section class="panel active" data-panel="tech">
     ${renderRawCategoryPanel("tech", techMainSubs)}
+    ${insights.tech ? `<div class="section-insight">
+      <span class="insight-label">${STR.sectionInsightLabel}</span>
+      <p class="insight-text">${escapeHtml(insights.tech)}</p>
+    </div>` : ""}
   </section>
   ${trading ? `<section class="panel" data-panel="trading">${renderTradingPanel(trading)}</section>` : ""}
   <section class="panel" data-panel="politics">
     ${renderRawCategoryPanel("politics", raw.politics)}
+    ${insights.politics ? `<div class="section-insight">
+      <span class="insight-label">${STR.sectionInsightLabel}</span>
+      <p class="insight-text">${escapeHtml(insights.politics)}</p>
+    </div>` : ""}
   </section>
   <section class="panel" data-panel="finance">
     ${renderRawCategoryPanel("finance", raw.finance)}
+    ${insights.finance ? `<div class="section-insight">
+      <span class="insight-label">${STR.sectionInsightLabel}</span>
+      <p class="insight-text">${escapeHtml(insights.finance)}</p>
+    </div>` : ""}
   </section>
+  ${raw.robotics.length > 0 ? `<section class="panel" data-panel="robotics">
+    ${renderRawCategoryPanel("robotics", raw.robotics)}
+    ${insights.robotics ? `<div class="section-insight">
+      <span class="insight-label">${STR.sectionInsightLabel}</span>
+      <p class="insight-text">${escapeHtml(insights.robotics)}</p>
+    </div>` : ""}
+  </section>` : ""}
   ${techCommunitySubs.length > 0 ? `<section class="panel" data-panel="community">
     ${renderRawCategoryPanel("tech", techCommunitySubs)}
   </section>` : ""}
