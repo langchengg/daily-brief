@@ -30,8 +30,8 @@ const htmlContent = fs.readFileSync(htmlPath, "utf8");
 
 console.log(`[notify] sending notifications for ${date}…`);
 sendNotifications(report, date, htmlContent)
-  .then(() => console.log("[notify] done."))
+  .then(({ sent }) => console.log(`[notify] done. Sent via: ${sent.join(", ")}`))
   .catch((e) => {
-    console.error("[notify] FAILED:", e);
+    console.error("[notify] FAILED:", e instanceof Error ? e.message : String(e));
     process.exit(1);
   });

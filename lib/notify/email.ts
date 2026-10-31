@@ -5,22 +5,30 @@ import type { DailyReport } from "../ai/pipeline";
  * Send the daily report as an HTML email via SMTP (Gmail / QQ / 163 etc.).
  *
  * Required env vars:
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, NOTIFY_EMAIL_TO
+ *   SMTP_HOST, SMTP_USER, SMTP_PASS, NOTIFY_EMAIL_TO (SMTP_PORT defaults to 465)
  */
 export async function sendEmail(
   report: DailyReport,
   date: string,
   htmlContent: string,
-): Promise<void> {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || "465");
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const to = process.env.NOTIFY_EMAIL_TO;
+): Promise<"sent" | "skipped"> {
+  const required = ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "NOTIFY_EMAIL_TO"] as const;
+  if (![...required, "SMTP_PORT"].some((name) => process.env[name])) {
+    console.log("[notify:email] skipped — email is not configured");
+    return "skipped";
+  }
+  const missing = required.filter((name) => !process.env[name]?.trim());
+  if (missing.length > 0) {
+    throw new Error(`Email configuration is incomplete: missing ${missing.join(", ")}`);
+  }
 
-  if (!host || !user || !pass || !to) {
-    console.log("[notify:email] skipped — SMTP_* or NOTIFY_EMAIL_TO not configured");
-    return;
+  const host = process.env.SMTP_HOST!.trim();
+  const port = Number(process.env.SMTP_PORT || "465");
+  const user = process.env.SMTP_USER!.trim();
+  const pass = process.env.SMTP_PASS!;
+  const to = process.env.NOTIFY_EMAIL_TO!.trim();
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("SMTP_PORT must be an integer between 1 and 65535");
   }
 
   const transporter = nodemailer.createTransport({
@@ -28,6 +36,9 @@ export async function sendEmail(
     port,
     secure: port === 465,
     auth: { user, pass },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
   });
 
   // Build a concise email body with key highlights
@@ -54,19 +65,35 @@ export async function sendEmail(
   <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;">完整报告见附件 HTML 文件，或在电脑上查看。</p>
 </div>`;
 
-  await transporter.sendMail({
-    from: `"每日简报" <${user}>`,
-    to,
-    subject: `每日简报 · ${date}`,
-    html: emailHtml,
-    attachments: [
-      {
-        filename: `${date}.html`,
-        content: htmlContent,
-        contentType: "text/html",
-      },
-    ],
-  });
+  try {
+    const result = await transporter.sendMail({
+      from: `"每日简报" <${user}>`,
+      to,
+      subject: `每日简报 · ${date}`,
+      html: emailHtml,
+      attachments: [
+        {
+          filename: `${date}.html`,
+          content: htmlContent,
+          contentType: "text/html",
+        },
+      ],
+    });
 
-  console.log(`[notify:email] sent to ${to}`);
+    const accepted = result.accepted?.length ?? 0;
+    const rejected = result.rejected?.length ?? 0;
+    if (rejected > 0) {
+      throw new Error(
+        `SMTP rejected ${rejected} recipient(s); ${accepted} accepted. Check delivery before retrying to avoid duplicate emails.`,
+      );
+    }
+    if (accepted === 0) {
+      throw new Error("SMTP did not accept any recipients");
+    }
+
+    console.log(`[notify:email] sent to ${to} (accepted by SMTP)`);
+    return "sent";
+  } finally {
+    transporter.close();
+  }
 }
