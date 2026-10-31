@@ -41,6 +41,12 @@ on:
     - cron: '7 * * * *'
     - cron: '37 * * * *'
   workflow_dispatch:
+    inputs:
+      email_report_bundle:
+        description: 'Optional: Base64 Brotli JSON report bundle to email without regenerating or publishing'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write  # needed to push to gh-pages branch
@@ -52,6 +58,7 @@ concurrency:
 jobs:
   gate:
     name: Time gate
+    if: inputs.email_report_bundle == ''
     runs-on: ubuntu-latest
     outputs:
       should-run: ${{ steps.check.outputs.should-run }}
@@ -260,3 +267,30 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           REPORT_TZ: ${{ vars.REPORT_TZ }}
         run: npm run notify
+
+  email-existing:
+    name: Email existing report
+    if: github.event_name == 'workflow_dispatch' && inputs.email_report_bundle != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Email supplied report
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ vars.SMTP_PORT || '465' }}
+          SMTP_USER: ${{ secrets.SMTP_USER || vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          NOTIFY_EMAIL_TO: ${{ vars.NOTIFY_EMAIL_TO || secrets.NOTIFY_EMAIL_TO }}
+        # Read the bundle from GITHUB_EVENT_PATH so it is not echoed in step env logs.
+        run: node --import tsx scripts/email-existing.ts

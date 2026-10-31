@@ -175,6 +175,12 @@ npm run notify
 无法直连 Gmail SMTP，需要在允许 SMTP 出网的运行器上执行通知。
 通知配置缺失、认证失败或收件人被拒绝都会使通知命令失败，不会再显示为成功发送。
 
+已经生成的报告可以单独补发：`Daily Brief` 的手动触发参数 `email_report_bundle`
+接受 Base64 编码的 Brotli 压缩 JSON，内容为 `{ "date": "YYYY-MM-DD", "report": <报告 JSON>, "html": <完整 HTML 字符串> }`。
+提供此参数时只运行邮件发送任务，跳过 LLM、静态站点生成和发布。
+接收端 `scripts/email-existing.ts` 会校验大小、日期和报告结构，并保持 HTML 附件原样。
+该参数只包含报告内容，不要放入密码或 API 密钥；SMTP 凭据仍通过 Actions Secrets 提供。
+
 ---
 
 ## 📁 核心架构
