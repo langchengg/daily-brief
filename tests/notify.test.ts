@@ -88,6 +88,22 @@ test("SMTP rejection or zero accepted recipients cannot be reported as sent", as
   assert.equal(close.mock.callCount(), 2);
 });
 
+test("Gmail app-password display spaces are removed without changing other passwords", async (t) => {
+  configureEmail();
+  const { create } = mockSmtp(t, async () => ({ accepted: ["reader@example.test"], rejected: [] }));
+  process.env.SMTP_HOST = "smtp.gmail.com";
+  process.env.SMTP_PASS = " abcd efgh ijkl mnop\n";
+  await sendEmail(report, reportDate, reportHtml);
+  assert.equal(create.mock.calls[0].arguments[0].auth.pass, "abcdefghijklmnop");
+  process.env.SMTP_HOST = "smtp.example.test";
+  await sendEmail(report, reportDate, reportHtml);
+  assert.equal(create.mock.calls[1].arguments[0].auth.pass, " abcd efgh ijkl mnop\n");
+  process.env.SMTP_HOST = "smtp.gmail.com";
+  process.env.SMTP_PASS = "arbitrary password";
+  await sendEmail(report, reportDate, reportHtml);
+  assert.equal(create.mock.calls[2].arguments[0].auth.pass, "arbitrary password");
+});
+
 test("SMTP failure still attempts Telegram and fails the aggregate result", async (t) => {
   configureEmail();
   Object.assign(process.env, { TELEGRAM_BOT_TOKEN: "test-token", TELEGRAM_CHAT_ID: "test-chat" });

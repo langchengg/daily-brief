@@ -25,7 +25,13 @@ export async function sendEmail(
   const host = process.env.SMTP_HOST!.trim();
   const port = Number(process.env.SMTP_PORT || "465");
   const user = process.env.SMTP_USER!.trim();
-  const pass = process.env.SMTP_PASS!;
+  const rawPass = process.env.SMTP_PASS!;
+  // Google displays its 16-letter app passwords in space-separated groups.
+  // Normalize that specific format only; other providers' passwords are literal.
+  const pass = host.toLowerCase() === "smtp.gmail.com"
+    && /^(?:[a-z]\s*){16}$/i.test(rawPass.trim())
+    ? rawPass.replace(/\s/g, "")
+    : rawPass;
   const to = process.env.NOTIFY_EMAIL_TO!.trim();
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("SMTP_PORT must be an integer between 1 and 65535");
