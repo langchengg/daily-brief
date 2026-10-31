@@ -7,6 +7,8 @@ name: Daily Brief
 #   2. Settings → Pages → Build & deployment → Source: "Deploy from a branch" → gh-pages / root
 #   3. Settings → Secrets and variables → Actions:
 #        - Secrets: ANTHROPIC_API_KEY (or OPENAI / DEEPSEEK / MINIMAX / ZHIPU as you prefer)
+#        - Optional email secrets: SMTP_USER, SMTP_PASS, NOTIFY_EMAIL_TO
+#          SMTP_HOST / SMTP_PORT variables default to Gmail on port 465.
 #        - Variables (all optional, sensible defaults provided):
 #            LLM_BACKEND     anthropic | openai | deepseek | minimax | zhipu    (default: anthropic)
 #            LLM_MODEL       e.g. claude-sonnet-4-6 / gpt-4o-mini       (backend default if unset)
@@ -39,6 +41,12 @@ on:
     - cron: '7 * * * *'
     - cron: '37 * * * *'
   workflow_dispatch:
+    inputs:
+      email_report_bundle:
+        description: 'Optional: Base64 Brotli JSON report bundle to email without regenerating or publishing'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write  # needed to push to gh-pages branch
@@ -50,6 +58,7 @@ concurrency:
 jobs:
   gate:
     name: Time gate
+    if: inputs.email_report_bundle == ''
     runs-on: ubuntu-latest
     outputs:
       should-run: ${{ steps.check.outputs.should-run }}
@@ -177,6 +186,10 @@ jobs:
     if: needs.gate.outputs.should-run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      # A recipient opts this workflow into email delivery. Keep the credential
+      # itself scoped to the send step; an incomplete setup must fail visibly.
+      NOTIFY_EMAIL_TO: ${{ vars.NOTIFY_EMAIL_TO || secrets.NOTIFY_EMAIL_TO }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -244,3 +257,40 @@ jobs:
           publish_branch: gh-pages
           keep_files: false  # we restored everything above, so a clean publish is fine
           commit_message: 'daily: report for ${{ github.run_id }}'
+
+      - name: Email today's report
+        if: env.NOTIFY_EMAIL_TO != ''
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ vars.SMTP_PORT || '465' }}
+          SMTP_USER: ${{ secrets.SMTP_USER || vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          REPORT_TZ: ${{ vars.REPORT_TZ }}
+        run: npm run notify
+
+  email-existing:
+    name: Email existing report
+    if: github.event_name == 'workflow_dispatch' && inputs.email_report_bundle != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Email supplied report
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ vars.SMTP_PORT || '465' }}
+          SMTP_USER: ${{ secrets.SMTP_USER || vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          NOTIFY_EMAIL_TO: ${{ vars.NOTIFY_EMAIL_TO || secrets.NOTIFY_EMAIL_TO }}
+        # Read the bundle from GITHUB_EVENT_PATH so it is not echoed in step env logs.
+        run: node --import tsx scripts/email-existing.ts

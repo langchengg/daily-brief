@@ -157,6 +157,30 @@ npm run daily
 npm run notify
 ```
 
+### 方式 C：GitHub Actions 生成并发送邮件
+
+`npm run daily` 只生成报告，发送邮件需要再执行 `npm run notify`。
+仓库的 `Daily Brief` 工作流会在发布报告后发送邮件；配置收件地址后启用：
+
+1. 在仓库 **Settings → Secrets and variables → Actions → Secrets** 中添加
+   `SMTP_USER`（发件 Gmail 地址）、`SMTP_PASS`（Gmail 应用密码）和
+   `NOTIFY_EMAIL_TO`（收件地址）。不要将应用密码提交到代码或工作流文件。
+2. 同一处配置所用 LLM 的 Secret，例如 `DEEPSEEK_API_KEY`；在 **Variables** 中设置
+   `LLM_BACKEND=deepseek`、`REPORT_TZ=Europe/London`、`REPORT_HOUR=8`。
+   工作流默认使用 `smtp.gmail.com:465`，其他邮件服务可设置 `SMTP_HOST` / `SMTP_PORT`。
+3. 在 **Actions → Daily Brief → Run workflow** 手动验证一次。邮件发送步骤成功表示
+   SMTP 服务接受了邮件；请在收件箱和垃圾邮件中确认实际到达。
+
+云开发环境中的凭据不会自动复制到 GitHub Actions。仅支持 HTTP/HTTPS 出网的开发环境
+无法直连 Gmail SMTP，需要在允许 SMTP 出网的运行器上执行通知。
+通知配置缺失、认证失败或收件人被拒绝都会使通知命令失败，不会再显示为成功发送。
+
+已经生成的报告可以单独补发：`Daily Brief` 的手动触发参数 `email_report_bundle`
+接受 Base64 编码的 Brotli 压缩 JSON，内容为 `{ "date": "YYYY-MM-DD", "report": <报告 JSON>, "html": <完整 HTML 字符串> }`。
+提供此参数时只运行邮件发送任务，跳过 LLM、静态站点生成和发布。
+接收端 `scripts/email-existing.ts` 会校验大小、日期和报告结构，并保持 HTML 附件原样。
+该参数只包含报告内容，不要放入密码或 API 密钥；SMTP 凭据仍通过 Actions Secrets 提供。
+
 ---
 
 ## 📁 核心架构

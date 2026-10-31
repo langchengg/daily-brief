@@ -9,13 +9,16 @@ import type { DailyReport } from "../ai/pipeline";
 export async function sendTelegram(
   report: DailyReport,
   date: string,
-): Promise<void> {
+): Promise<"sent" | "skipped"> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
+  if (!token && !chatId) {
+    console.log("[notify:telegram] skipped — Telegram is not configured");
+    return "skipped";
+  }
   if (!token || !chatId) {
-    console.log("[notify:telegram] skipped — TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured");
-    return;
+    throw new Error(`Telegram configuration is incomplete: missing ${!token ? "TELEGRAM_BOT_TOKEN" : "TELEGRAM_CHAT_ID"}`);
   }
 
   const insights = report.section_insights ?? {};
@@ -54,6 +57,7 @@ export async function sendTelegram(
   }
 
   console.log(`[notify:telegram] sent to chat ${chatId}`);
+  return "sent";
 }
 
 /** Escape special Markdown V1 characters. */
