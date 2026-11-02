@@ -18,9 +18,19 @@ export async function sendEmail(
   const pass = process.env.SMTP_PASS;
   const to = process.env.NOTIFY_EMAIL_TO;
 
-  if (!host || !user || !pass || !to) {
-    console.log("[notify:email] skipped — SMTP_* or NOTIFY_EMAIL_TO not configured");
+  if (!host && !user && !pass && !to) {
+    console.log("[notify:email] skipped — email notifications are not configured");
     return;
+  }
+
+  const missing = Object.entries({ SMTP_HOST: host, SMTP_USER: user, SMTP_PASS: pass, NOTIFY_EMAIL_TO: to })
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+  if (missing.length) {
+    throw new Error(`Email configuration incomplete: missing ${missing.join(", ")}`);
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("SMTP_PORT must be an integer between 1 and 65535");
   }
 
   const transporter = nodemailer.createTransport({
@@ -28,6 +38,9 @@ export async function sendEmail(
     port,
     secure: port === 465,
     auth: { user, pass },
+    connectionTimeout: 30_000,
+    greetingTimeout: 30_000,
+    socketTimeout: 60_000,
   });
 
   // Build a concise email body with key highlights

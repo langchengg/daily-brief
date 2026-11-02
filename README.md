@@ -144,6 +144,24 @@ crontab -e
 0 8 * * * cd /opt/daily-brief && npm run daily && npm run notify >> /opt/daily-brief/logs/cron.log 2>&1
 ```
 
+### GitHub Actions 邮件配置
+
+在仓库 **Settings → Secrets and variables → Actions** 中配置：
+
+| 标签页 | 名称 | 示例 / 说明 |
+|---|---|---|
+| Variables | `LLM_BACKEND` | `deepseek` |
+| Secrets | `DEEPSEEK_API_KEY` | DeepSeek API 密钥 |
+| Variables | `SMTP_HOST` | `smtp.gmail.com` 或邮箱服务商的 SMTP 地址 |
+| Variables | `SMTP_PORT` | `465`（默认，TLS）或 `587`（STARTTLS） |
+| Secrets | `SMTP_USER` | 发件邮箱账号；也支持放在 Variables |
+| Secrets | `SMTP_PASS` | 邮箱服务商提供的 SMTP 授权码 / 应用专用密码 |
+| Secrets | `NOTIFY_EMAIL_TO` | 收件邮箱；也支持放在 Variables |
+| Variables | `REPORT_TZ` | 可选，生成与发送使用相同的时区 |
+
+工作流在发布日报后执行 `npm run notify`。邮件配置全部为空时跳过发送；配置不完整或发送失败时，通知步骤会失败，已发布的日报仍然保留。
+本地 `.env.local` 或 Codex 云环境的设置不会自动同步到 GitHub Actions。
+
 ### 方式 B：本地 macOS / Linux
 
 ```bash
